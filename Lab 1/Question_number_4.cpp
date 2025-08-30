@@ -1,9 +1,9 @@
 #include <iostream>
 using namespace std;
-int *rectangleArea(int w, int h)
+int *rectangleArea2(int *w, int &h)
 {
     int *result = (int *)malloc(sizeof(int));
-    *result = w * h;
+    *result = *w * h;
     w++;
     h++;
     return result;
@@ -11,12 +11,12 @@ int *rectangleArea(int w, int h)
 int main(int argc, char **argv)
 {
     int a = 7, b = 3;
-    int *x = rectangleArea(a, b);
+    int *x = rectangleArea2(&a, b);
     cout << x << " " << *x << endl;
     cout << a << " " << b << endl;
     return 0;
 }
 
-// Output : 
-// 0x24adbec25c0 21
-// 7 3
+// Output :
+// 0x2c3468b25c0 21
+// 7 4
