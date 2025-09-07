@@ -1,0 +1,4 @@
+My_yesterday_activities:
+9:00AM,Had_breakfast_(Boiled_eggs).
+1:30PM,Took_CS348_Class.
+5:00PM,Read_books_with_friends.
