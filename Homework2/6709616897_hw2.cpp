@@ -6,221 +6,204 @@
 #include <sstream>
 #include <string>
 #include <iomanip>
-#include <limits>
 #include <cctype>
 #include <cstdlib>
-#include <cstdio>
 using namespace std;
 
-struct Student {
-    long long id;   // student ID (BST key)
-    char program;   // 'N' = normal, 'S' = special
-    string email;   // student email
-    char status;    // 'A' = active, 'W' = withdraw
+// Represents one student's record (BST key = id)
+struct StudentRecord {
+    long long id;
+    char program;  // 'N' = normal, 'S' = special
+    string email;
+    char status;   // 'A' = active, 'W' = withdraw
 };
 
-struct Node {
-    Student s;
-    Node* left;
-    Node* right;
-    Node(const Student& st) : s(st), left(NULL), right(NULL) {}
+// Basic BST node for StudentRecord
+struct BSTNode {
+    StudentRecord rec;
+    BSTNode *left, *right;
+    BSTNode(const StudentRecord& r): rec(r), left(NULL), right(NULL) {}
 };
 
-// ---------- helpers ----------
-static inline void trim(string &s) {
-    // remove leading/trailing spaces
-    size_t n = s.size();
-    size_t i = 0;
-    while (i < n && isspace((unsigned char)s[i])) i++;
-    if (i == n) { s.clear(); return; }
-    size_t j = n - 1;
-    while (j > i && isspace((unsigned char)s[j])) j--;
-    s = s.substr(i, j - i + 1);
+// Trim leading/trailing spaces from a string
+static inline void trimWhitespace(string &x){
+    size_t i=0, n=x.size();
+    while(i<n && isspace((unsigned char)x[i])) ++i;
+    if(i==n){ x.clear(); return; }
+    size_t j=n-1;
+    while(j>i && isspace((unsigned char)x[j])) --j;
+    x = x.substr(i, j-i+1);
 }
 
-static inline bool isDigits(const string& t) {
-    if (t.empty()) return false;
-    for (size_t i = 0; i < t.size(); ++i) {
-        if (!isdigit((unsigned char)t[i])) return false;
+// Keep only digits
+static inline string extractDigits(const string& s){
+    string t; t.reserve(s.size());
+    for(size_t i=0;i<s.size();++i){
+        unsigned char c = (unsigned char)s[i];
+        if(c>='0' && c<='9') t.push_back((char)c);
     }
-    return true;
+    return t;
 }
 
-// ---------- BST ops ----------
-bool bstInsert(Node*& root, const Student& st) {
-    if (!root) { root = new Node(st); return true; }
-    if (st.id < root->s.id) return bstInsert(root->left, st);
-    if (st.id > root->s.id) return bstInsert(root->right, st);
-    // duplicate ID: update existing node (or skip)
-    root->s = st;
+// Insert a record into BST; update record if duplicate id is found.
+// Returns true when a new node is created, false when an existing node is updated.
+bool bstInsertOrUpdate(BSTNode*& root, const StudentRecord& rec){
+    if(!root){ root=new BSTNode(rec); return true; }
+    if(rec.id < root->rec.id)  return bstInsertOrUpdate(root->left, rec);
+    if(rec.id > root->rec.id)  return bstInsertOrUpdate(root->right, rec);
+    root->rec = rec; // update
     return false;
 }
 
-Node* bstFind(Node* root, long long id) {
-    while (root) {
-        if (id < root->s.id) root = root->left;
-        else if (id > root->s.id) root = root->right;
+// Find node by student id; returns pointer or NULL if not found
+BSTNode* bstFindById(BSTNode* root, long long key){
+    while(root){
+        if(key < root->rec.id) root = root->left;
+        else if(key > root->rec.id) root = root->right;
         else return root;
     }
     return NULL;
 }
 
-void bstDestroy(Node* root) {
-    if (!root) return;
-    bstDestroy(root->left);
-    bstDestroy(root->right);
+// Get leftmost (minimum id) node
+BSTNode* bstMinNode(BSTNode* root){
+    if(!root) return NULL;
+    while(root->left) root=root->left;
+    return root;
+}
+
+// Get rightmost (maximum id) node
+BSTNode* bstMaxNode(BSTNode* root){
+    if(!root) return NULL;
+    while(root->right) root=root->right;
+    return root;
+}
+
+// Post-order free of all nodes
+void bstDestroyTree(BSTNode* root){
+    if(!root) return;
+    bstDestroyTree(root->left);
+    bstDestroyTree(root->right);
     delete root;
 }
 
-Node* bstMin(Node* root) {
-    if (!root) return NULL;
-    while (root->left) root = root->left;
-    return root;
+// Print table header for list output
+void printTableHeader(const string& title){
+    cout << title << "\n\n";
+    cout << left
+         << setw(12) << "ID" << "  "
+         << setw(8)  << "PROGRAM" << "  "
+         << setw(30) << "EMAIL" << "  "
+         << "STATUS" << "\n";
 }
 
-Node* bstMax(Node* root) {
-    if (!root) return NULL;
-    while (root->right) root = root->right;
-    return root;
-}
-
-// ---------- printing / counters ----------
-void printTableHeader(const string& title) {
-    cout << title << "\n";
-    cout << " ID          PROGRAM   EMAIL                          STATUS\n";
-}
-
-void inorderPrintByProgram(Node* root, char program, int& counter) {
-    if (!root) return;
-    inorderPrintByProgram(root->left, program, counter);
-    if (toupper((unsigned char)root->s.program) == toupper((unsigned char)program)) {
-        // align columns: ID(12) PROGRAM(8) EMAIL(30) STATUS(6)
-        cout << ' ' << setw(12) << root->s.id << "  "
-             << left << setw(8) << string(1, (char)toupper((unsigned char)root->s.program)) << " "
-             << left << setw(30) << root->s.email << " "
-             << left << setw(6)  << string(1, (char)toupper((unsigned char)root->s.status))
-             << right << "\n";
-        counter++;
+// In-order traversal printing only a specific program ('N' or 'S')
+void printInorderByProgram(BSTNode* root, char program, int& counter){
+    if(!root) return;
+    printInorderByProgram(root->left, program, counter);
+    if(toupper((unsigned char)root->rec.program)==toupper((unsigned char)program)){
+        cout << right << setw(12) << root->rec.id << "  "
+             << left  << setw(8)  << string(1, root->rec.program) << "  "
+             << left  << setw(33) << root->rec.email << "  "
+             << left  << root->rec.status << "\n";
+        ++counter;
     }
-    inorderPrintByProgram(root->right, program, counter);
+    printInorderByProgram(root->right, program, counter);
 }
 
-void countStatusAW(Node* root, int& cntA, int& cntW) {
-    if (!root) return;
-    countStatusAW(root->left, cntA, cntW);
-    if (toupper((unsigned char)root->s.status) == 'A') cntA++;
-    else if (toupper((unsigned char)root->s.status) == 'W') cntW++;
-    countStatusAW(root->right, cntA, cntW);
+// Count how many students are Active (A) and Withdrawn (W)
+void countActiveWithdrawn(BSTNode* root, int& activeCount, int& withdrawnCount){
+    if(!root) return;
+    countActiveWithdrawn(root->left, activeCount, withdrawnCount);
+    if(root->rec.status=='A') ++activeCount;
+    else if(root->rec.status=='W') ++withdrawnCount;
+    countActiveWithdrawn(root->right, activeCount, withdrawnCount);
 }
 
-// ---------- load file ----------
-bool loadFromFile(const string& path, Node*& root, int& totalRows) {
-    ifstream fin(path.c_str());
-    if (!fin.is_open()) {
-        cerr << "File not found: '" << path << "'\n";
+// Read classlist file and build BST of StudentRecord
+bool loadClasslistIntoBST(const string& path, BSTNode*& root){
+    ifstream fin(path.c_str(), ios::binary);
+    if(!fin.is_open()){
+        cerr << "Cannot open file: " << path << "\n";
         return false;
     }
 
-    string line;
-    totalRows = 0;
+    string idStr, prg, email, st;
     int inserted = 0;
 
-    while (getline(fin, line)) {
-        trim(line);
-        if (line.empty()) continue;
+    while (fin >> idStr >> prg >> email >> st) {
+        idStr = extractDigits(idStr);
+        if (idStr.empty()) continue;
 
-        // robust: split by whitespace (tabs/spaces)
-        stringstream ss(line);
-        string idStr, programStr, emailStr, statusStr;
+        StudentRecord rec;
+        rec.id      = atoll(idStr.c_str());
+        rec.program = (char)toupper((unsigned char)prg[0]);
+        rec.email   = email;
+        rec.status  = (char)toupper((unsigned char)st[0]);
 
-        if (!(ss >> idStr >> programStr >> emailStr >> statusStr)) {
-            // likely header/bad line => skip
-            continue;
-        }
-        if (!isDigits(idStr)) {
-            // header like "ID PROGRAM ..." => skip
-            continue;
-        }
-        if (programStr.empty() || statusStr.empty()) continue;
-
-        Student st;
-        st.id = atoll(idStr.c_str());         // C++98-friendly
-        st.program = (char)toupper((unsigned char)programStr[0]); // 'N' or 'S'
-        st.email = emailStr;
-        st.status  = (char)toupper((unsigned char)statusStr[0]);  // 'A' or 'W'
-
-        if (bstInsert(root, st)) inserted++;
-        totalRows++;
-    }
-
-    if (inserted == 0) {
-        cerr << "No valid data rows parsed.\n";
+        if (bstInsertOrUpdate(root, rec)) ++inserted;
     }
     return inserted > 0;
 }
 
-// ---------- main ----------
-int main() {
-    // Keep default sync/tie for Dev-C++98
+// main
+int main(){
     const string filename = "classlist60.txt";
 
-    Node* root = NULL;
-    int totalRows = 0;
-    if (!loadFromFile(filename, root, totalRows)) {
-        return 0; // abort if failed to load
-    }
+    BSTNode* root = NULL;
+    if(!loadClasslistIntoBST(filename, root)) return 0;
 
-    // 1) normal program list
-    int countN = 0;
+    // Print Normal program list
+    int normalCount=0;
     printTableHeader("List of normal program students in CS213 class:");
-    inorderPrintByProgram(root, 'N', countN);
-    cout << "Total registered normal program students: " << countN << "\n\n";
+    printInorderByProgram(root, 'N', normalCount);
+    cout << "\nTotal registered normal program students: " << normalCount << "\n\n";
 
-    // 2) special program list
-    int countS = 0;
+    // Print Special program list
+    int specialCount=0;
     printTableHeader("List of special program students in CS213 class:");
-    inorderPrintByProgram(root, 'S', countS);
-    cout << "Total registered special program students: " << countS << "\n\n";
+    printInorderByProgram(root, 'S', specialCount);
+    cout << "\nTotal registered special program students: " << specialCount << "\n\n";
 
-    // 3) count A/W
-    int cntA = 0, cntW = 0;
-    countStatusAW(root, cntA, cntW);
-    cout << "Number of Active students : " << cntA << "\n";
-    cout << "Number of withdrawal students : " << cntW << "\n\n";
+    // Summary of A/W
+    int activeCount=0, withdrawnCount=0;
+    countActiveWithdrawn(root, activeCount, withdrawnCount);
+    cout << "Number of Active students : " << activeCount << "\n";
+    cout << "Number of withdrawal students : " << withdrawnCount << "\n\n";
 
-    // 4) min/max IDs
-    Node* mn = bstMin(root);
-    Node* mx = bstMax(root);
-    if (mn && mx) {
-        cout << "The first ID of this classlist is " << mn->s.id << "\n";
-        cout << "The last ID of this classlist is " << mx->s.id << "\n\n";
+    // Min/Max IDs
+    BSTNode* minNode = bstMinNode(root);
+    BSTNode* maxNode = bstMaxNode(root);
+    if(minNode && maxNode){
+        cout << "The first ID of this classlist is  " << minNode->rec.id << "\n";
+        cout << "The last ID of this classlist is   " << maxNode->rec.id << "\n\n";
     }
 
     cout << "======================================================================\n\n";
 
-    // 5) search loop until empty Enter
-    while (true) {
-        // Show prompt and FLUSH so the cursor is ready to type immediately
+    // Search loop for contacting email by student ID
+    while(true){
         cout << "Search email for student ID : ";
-        cout.flush();            // or: fflush(stdout);
+        cout.flush();
 
-        string line;
-        if (!getline(cin, line)) break; // EOF => exit
-        trim(line);
-        if (line.empty()) break;        // empty => stop
+        string query;
+        if(!getline(cin, query)) break;
+        trimWhitespace(query);
+        if(query.empty()) break;
 
-        if (!isDigits(line)) {
+        string idStr = extractDigits(query);
+        if(idStr.empty()){
             cout << "Contact email : invalid student ID\n\n";
             continue;
         }
 
-        long long qid = atoll(line.c_str());
-        Node* node = bstFind(root, qid);
-        if (node) cout << "Contact email : " << node->s.email << "\n\n";
+        long long key = atoll(idStr.c_str());
+        BSTNode* found = bstFindById(root, key);
+        if(found) cout << "Contact email : " << found->rec.email << "\n\n";
         else      cout << "Contact email : not found\n\n";
     }
 
-    bstDestroy(root);
+    bstDestroyTree(root);
     return 0;
 }
 
